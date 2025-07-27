@@ -1,6 +1,8 @@
 // src/pages/Admin.jsx
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../contexts/AuthContext";
+import { linkAPI } from "../lib/linkUtils";
 import {
   LineChart,
   Line,
@@ -32,36 +34,53 @@ export default function Admin() {
   const [darkMode, setDarkMode] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
 
+  const { user } = useAuth();
+
+  const handleDeleteLink = async (linkId) => {
+    if (!window.confirm("Are you sure you want to delete this link?")) return;
+
+    const { error } = await linkAPI.deleteLink(linkId, user.id);
+    if (!error) {
+      // Refresh the data
+      fetchAllData();
+    }
+  };
+
+  const fetchAllData = async () => {
+    if (!user) return;
+
+    // Fetch user's links with click counts
+    const { data: linksData } = await linkAPI.getUserLinks(user.id);
+    console.log("Links:", linksData);
+    setLinks(linksData || []);
+
+    // Calculate user-specific stats from their links
+    const totalLinks = linksData?.length || 0;
+    const totalClicks = linksData?.reduce((sum, link) => sum + (link.click_count || 0), 0) || 0;
+    setStats({ total_links: totalLinks, total_clicks: totalClicks });
+
+    const { data: timeSeriesData } = await supabase.rpc('get_clicks_by_time');
+    console.log("Time Data:", timeSeriesData);
+    setTimeData(timeSeriesData || []);
+
+    const { data: countryData } = await supabase.rpc('get_country_stats');
+    console.log("Country:", countryData);
+    setCountryData(countryData || []);
+
+    const { data: deviceData } = await supabase.rpc('get_device_stats');
+    console.log("Devices:", deviceData);
+    setDeviceData(deviceData || []);
+
+    const { data: browserData } = await supabase.rpc('get_browser_stats');
+    console.log("Browsers:", browserData);
+    setBrowserData(browserData || []);
+  };
+
   useEffect(() => {
-    const fetchAllData = async () => {
-      // Fetch links with click counts
-    const { data: linksData } = await supabase.from('links').select('*, clicks(count)');
-      console.log("Links:", linksData);
-      setLinks(linksData || []);
-
-      const { data: statsData } = await supabase.rpc('get_link_stats');
-      console.log("Stats:", statsData);
-      setStats(statsData?.[0] || { total_links: 0, total_clicks: 0 });
-
-      const { data: timeSeriesData } = await supabase.rpc('get_clicks_by_time');
-      console.log("Time Data:", timeSeriesData);
-      setTimeData(timeSeriesData || []);
-
-      const { data: countryData } = await supabase.rpc('get_country_stats');
-      console.log("Country:", countryData);
-      setCountryData(countryData || []);
-
-      const { data: deviceData } = await supabase.rpc('get_device_stats');
-      console.log("Devices:", deviceData);
-      setDeviceData(deviceData || []);
-
-      const { data: browserData } = await supabase.rpc('get_browser_stats');
-      console.log("Browsers:", browserData);
-      setBrowserData(browserData || []);
-    };
+    fetchAllData();
 
     fetchAllData();
-  }, []);
+  }, [user]);
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -107,7 +126,7 @@ export default function Admin() {
       <div className="container mx-auto px-4 py-8">
 
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Link Analytics Dashboard</h1>
+          <h1 className="text-3xl font-bold">My Links Dashboard</h1>
           <button
             onClick={() => setDarkMode(!darkMode)}
             className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
@@ -321,7 +340,7 @@ export default function Admin() {
           </div>
         </div>
          <div className={`p-6 rounded-xl shadow-lg mb-8 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          <h2 className="text-xl font-semibold mb-4">All Links</h2>
+          <h2 className="text-xl font-semibold mb-4">My Links</h2>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -344,12 +363,13 @@ export default function Admin() {
                   >
                     Clicks {sortConfig.key === 'click_count' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
-                  <th 
+                  <th
                     className="p-3 text-left cursor-pointer"
                     onClick={() => handleSort('created_at')}
                   >
                     Created At {sortConfig.key === 'created_at' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
+                  <th className="p-3 text-left">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -380,6 +400,20 @@ export default function Admin() {
                     </td>
                     <td className="p-3">{link.click_count}</td>
                     <td className="p-3">{new Date(link.created_at).toLocaleString()}</td>
+                    <td className="p-3">
+                      <button
+                        onClick={() => navigator.clipboard.writeText(`${window.location.origin}/${link.short_code}`)}
+                        className={`mr-2 text-sm ${darkMode ? 'text-green-300 hover:text-green-200' : 'text-green-600 hover:text-green-800'}`}
+                      >
+                        Copy
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLink(link.id)}
+                        className={`text-sm ${darkMode ? 'text-red-300 hover:text-red-200' : 'text-red-600 hover:text-red-800'}`}
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
