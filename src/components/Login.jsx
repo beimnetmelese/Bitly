@@ -24,11 +24,16 @@ function Login() {
           setError("Name is required");
           return;
         }
-        const { error } = await signUp(email, password, name);
+        const { data, error } = await signUp(email, password, name);
         if (error) {
           setError(error.message);
         } else {
-          navigate("/");
+          // Check if email confirmation is required
+          if (data.user && !data.session) {
+            setError("Please check your email and click the confirmation link to activate your account.");
+          } else {
+            navigate("/");
+          }
         }
       } else {
         const { error } = await signIn(email, password);
