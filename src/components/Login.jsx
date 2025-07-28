@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 function Login() {
   const [state, setState] = useState("login");
@@ -9,9 +9,27 @@ function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [emailConfirmationMessage, setEmailConfirmationMessage] = useState("");
 
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check if we were redirected here after registration with email confirmation message
+  useEffect(() => {
+    if (location.state?.emailConfirmation) {
+      setEmailConfirmationMessage("Please check your email and click the confirmation link to activate your account.");
+      setState("login"); // Ensure we're on login form
+    }
+  }, [location.state]);
+
+  // Clear email confirmation message when switching between forms
+  const handleStateChange = (newState) => {
+    setState(newState);
+    if (newState === "register") {
+      setEmailConfirmationMessage("");
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,7 +48,11 @@ function Login() {
         } else {
           // Check if email confirmation is required
           if (data.user && !data.session) {
-            setError("Please check your email and click the confirmation link to activate your account.");
+            // Redirect to login page with email confirmation message
+            navigate("/login", {
+              state: { emailConfirmation: true },
+              replace: true
+            });
           } else {
             navigate("/");
           }
@@ -64,6 +86,12 @@ function Login() {
         {error && (
           <div className="w-full p-3 bg-red-100 border border-red-400 text-red-700 rounded">
             {error}
+          </div>
+        )}
+
+        {emailConfirmationMessage && (
+          <div className="w-full p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded">
+            {emailConfirmationMessage}
           </div>
         )}
         {state === "register" && (
@@ -105,7 +133,7 @@ function Login() {
           <p>
             Already have account?{" "}
             <span
-              onClick={() => setState("login")}
+              onClick={() => handleStateChange("login")}
               className="text-blue-400 cursor-pointer"
             >
               click here
@@ -115,7 +143,7 @@ function Login() {
           <p>
             Create an account?{" "}
             <span
-              onClick={() => setState("register")}
+              onClick={() => handleStateChange("register")}
               className="text-blue-400 cursor-pointer"
             >
               click here
